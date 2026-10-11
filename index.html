@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Kennzeichen-Scanner</title>
+<meta name="theme-color" content="#F3F4F1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Kennzeichen">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="referrer" content="no-referrer">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+:root{
+  --ground:#F3F4F1; --panel:#FFFFFF; --line:#E1E3DE; --line-strong:#C9CCC5;
+  --ink:#15181B; --ink-2:#4A4F55; --muted:#5B6168;
+  --accent:#0A6A48; --accent-ink:#0A5A3D; --accent-soft:#DDEFE6;
+  --neutral-soft:#E9EAE6; --neutral-ink:#3D4247;
+  --warn-soft:#FBEBC8; --warn-ink:#6B4200;
+  --err-soft:#F7E1DE; --err-ink:#8A2A1E;
+  --eu:#003399;
+  --sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'IBM Plex Mono',ui-monospace,'Cascadia Mono',Consolas,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--ground);color:var(--ink);font:400 14px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+a{color:var(--ink)} a:hover{color:var(--accent)}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+[hidden]{display:none!important}
+
+.shell{display:flex;min-height:100vh}
+.side{flex:0 0 248px;background:var(--panel);border-right:1px solid var(--line);padding:28px 20px;display:flex;flex-direction:column;gap:32px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;letter-spacing:-.01em}
+.brand-mark{width:30px;height:20px;border:2px solid var(--ink);border-left:8px solid var(--eu);border-radius:4px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{padding:11px 12px;border-radius:6px;text-decoration:none;color:var(--ink-2)}
+.nav a[aria-current="page"]{background:var(--ground);color:var(--ink);font-weight:600}
+.side-status{margin-top:auto;padding:14px;border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
+.side-status strong{color:var(--ink);font-weight:500;font-size:14px;display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none}
+.dot.off{background:var(--line-strong)} .dot.err{background:var(--err-ink)} .dot.busy{background:var(--warn-ink)}
+
+.main{flex:1;min-width:0;padding:36px 40px 56px;display:flex;flex-direction:column;gap:24px;max-width:1240px}
+.head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:16px}
+h1{margin:0;font-size:26px;font-weight:600;letter-spacing:-.02em}
+h2{margin:0;font-size:16px;font-weight:600}
+.sub{color:var(--muted);margin-top:2px}
+.row{display:flex;flex-wrap:wrap;gap:24px;align-items:flex-start}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:24px;display:flex;flex-direction:column;gap:16px;min-width:0}
+.wide{flex:3 1 480px} .narrow{flex:1 1 260px}
+.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+.btn{height:44px;padding:0 18px;border:1px solid var(--line-strong);border-radius:6px;background:var(--panel);font-weight:500;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap;text-decoration:none}
+.btn:hover{border-color:var(--ink-2);color:var(--ink)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600;padding:0 24px}
+.btn.primary:hover{background:var(--accent-ink);color:#fff}
+.btn.quiet{border-color:transparent;background:none;color:var(--accent-ink);font-weight:600;padding:0 10px}
+.btn.quiet:hover{background:var(--ground)}
+.btn.danger{color:var(--err-ink)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+
+.form{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px}
+.field{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--ink-2);flex:1 1 110px;min-width:0}
+.field.grow{flex:3 1 260px}
+.input{height:44px;width:100%;padding:0 12px;border:1px solid var(--line-strong);border-radius:6px;background:#fff}
+.input.plate-in{font:600 16px var(--mono);letter-spacing:.04em;text-transform:uppercase}
+select.input{padding:0 8px}
+.hint{color:var(--muted);font-size:13px;margin:0}
+.msg-err{color:var(--err-ink);font-size:13px;margin:0}
+
+.plate{display:inline-flex;align-items:stretch;height:34px;border:2px solid var(--ink);border-radius:5px;background:#fff;overflow:hidden;flex:none;color:var(--ink)}
+.plate::before{content:"";width:12px;background:var(--eu)}
+.plate span{padding:0 10px;display:flex;align-items:center;font:600 16px var(--mono);letter-spacing:.04em;white-space:nowrap}
+.plate.lg{height:44px;border-width:2.5px}.plate.lg::before{width:16px}.plate.lg span{font-size:21px;padding:0 14px}
+.plates{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px}
+.plates .plate span{flex:1;justify-content:center;padding:0 6px;font-size:15px}
+
+.badge{padding:4px 10px;border-radius:999px;font-weight:600;font-size:13px;white-space:nowrap;display:inline-block}
+.b-free{background:var(--accent-soft);color:var(--accent-ink)}
+.b-none{background:var(--neutral-soft);color:var(--neutral-ink)}
+.b-wait{background:var(--warn-soft);color:var(--warn-ink)}
+.b-err{background:var(--err-soft);color:var(--err-ink)}
+
+.result{display:flex;flex-wrap:wrap;align-items:center;gap:14px;padding:14px 16px;background:var(--ground);border-radius:8px}
+.result-block{display:flex;flex-direction:column;gap:14px;padding:16px;background:var(--ground);border-radius:8px}
+.result .end{margin-left:auto}
+.progress{height:3px;background:var(--line);border-radius:2px;overflow:hidden;flex-basis:100%}
+.progress i{display:block;height:100%;width:40%;background:var(--accent);animation:slide 1.4s ease-in-out infinite}
+@keyframes slide{0%{transform:translateX(-100%)}100%{transform:translateX(250%)}}
+@media (prefers-reduced-motion:reduce){.progress i{animation:none;width:100%;opacity:.4}}
+
+.kv{display:flex;justify-content:space-between;gap:12px;padding-bottom:12px;border-bottom:1px solid var(--line)}
+.kv:last-child{border-bottom:0;padding-bottom:0}
+.kv span:first-child{color:var(--muted)} .kv span:last-child{font-weight:500;text-align:right}
+
+.table-box{overflow-x:auto}
+table{width:100%;min-width:520px;border-collapse:collapse;text-align:left}
+th{padding:10px 8px;font-weight:500;font-size:13px;color:var(--muted);border-bottom:1px solid var(--line)}
+td{padding:12px 8px;border-bottom:1px solid var(--line);color:var(--ink-2);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+th:first-child,td:first-child{padding-left:0} th:last-child,td:last-child{padding-right:0}
+td.plate-cell{font:600 15px var(--mono);color:var(--ink);letter-spacing:.03em;white-space:nowrap}
+td.act{text-align:right;width:1%}
+
+.list{display:flex;flex-direction:column}
+.list-item{display:flex;align-items:center;gap:12px;min-height:56px;padding:8px 0;border-top:1px solid var(--line)}
+.list-item:first-child{border-top:0}
+.list-item .grow{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}
+.list-item .t{font:600 15px var(--mono);letter-spacing:.03em}
+.list-item .s{color:var(--muted);font-size:13px}
+.only-mobile{display:none}
+
+.event{display:grid;grid-template-columns:120px 1fr;gap:4px 16px;padding:12px 0;border-top:1px solid var(--line)}
+.event:first-child{border-top:0}
+.event time{color:var(--muted);font-size:13px;padding-top:1px}
+.event .what{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.event .mono{font:600 14px var(--mono)}
+
+.empty{padding:28px 8px;text-align:center;color:var(--muted);display:flex;flex-direction:column;align-items:center;gap:12px}
+.empty strong{color:var(--ink);font-weight:600;font-size:15px}
+
+.group{display:flex;flex-direction:column;gap:12px;padding-top:16px;border-top:1px solid var(--line)}
+.group:first-child{border-top:0;padding-top:0}
+.group-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.group-head b{font:600 15px var(--mono)}
+
+.steps{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px;color:var(--ink-2)}
+.steps b{color:var(--ink);font-weight:600}
+code{font:500 13px var(--mono);background:var(--ground);padding:1px 5px;border-radius:4px}
+
+.check{display:inline-flex;align-items:center;gap:8px;min-height:44px;color:var(--ink-2);cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--accent)}
+
+.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:10px 10px 10px 18px;border-radius:8px;display:flex;align-items:center;gap:12px;box-shadow:0 6px 24px rgba(21,24,27,.18);z-index:20;max-width:calc(100vw - 32px)}
+.toast button{height:36px;padding:0 12px;border:0;border-radius:5px;background:rgba(255,255,255,.14);color:#fff;font-weight:600;cursor:pointer}
+
+.topbar,.tabbar{display:none}
+@media (max-width:760px){
+  .side{display:none}
+  .main{padding:8px 16px calc(96px + env(safe-area-inset-bottom));gap:16px}
+  .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(14px + env(safe-area-inset-top)) 16px 4px}
+  .topbar .brand{font-size:14px}
+  .tabbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));position:fixed;left:0;right:0;bottom:0;background:var(--panel);border-top:1px solid var(--line);padding:4px 8px calc(8px + env(safe-area-inset-bottom));z-index:10}
+  .tabbar a{height:50px;display:flex;align-items:center;justify-content:center;text-decoration:none;font-size:13px;color:var(--ink-2);border-top:2px solid transparent}
+  .tabbar a[aria-current="page"]{color:var(--ink);font-weight:600;border-top-color:var(--ink)}
+  h1{font-size:22px}
+  .panel{padding:16px;gap:12px}
+  .head .btn{width:100%}
+  .event{grid-template-columns:1fr}
+  .form .btn.primary{flex:1 1 100%}
+  .result .end{margin-left:0;flex-basis:100%}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+  .only-mobile{display:flex}
+  .only-desktop{display:none}
+}
+.icon-btn.danger{color:var(--err-ink);border-color:transparent;background:none}
+.icon-btn.danger:hover{background:var(--err-soft)}
+.icon-btn{width:44px;height:44px;border:1px solid var(--line);border-radius:8px;background:var(--panel);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:none;color:var(--ink)}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="side">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Kennzeichen-Scanner</div>
+    <nav class="nav" aria-label="Hauptmenü">
+      <a href="#uebersicht" data-nav="uebersicht">Übersicht</a>
+      <a href="#watchlist" data-nav="watchlist">Watchlist</a>
+      <a href="#frei" data-nav="frei">Gerade frei</a>
+      <a href="#verlauf" data-nav="verlauf">Verlauf</a>
+      <a href="#einstellungen" data-nav="einstellungen">Einstellungen</a>
+    </nav>
+    <div class="side-status" data-region="sidestatus" aria-live="polite"></div>
+  </aside>
+
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span>Kennzeichen-Scanner</div>
+      <a class="icon-btn" href="#einstellungen" aria-label="Einstellungen">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      </a>
+    </header>
+    <main class="main" id="main"></main>
+  </div>
+</div>
+<nav class="tabbar" aria-label="Hauptmenü">
+  <a href="#uebersicht" data-nav="uebersicht">Übersicht</a>
+  <a href="#watchlist" data-nav="watchlist">Watchlist</a>
+  <a href="#frei" data-nav="frei">Frei</a>
+  <a href="#verlauf" data-nav="verlauf">Verlauf</a>
+</nav>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+"use strict";
+const REPO = "RedBull4444/kennzeichen-scanner";
+const BRANCH = "main";
+const API = "https://api.github.com";
+const CITIES = ["BB","LEO","S","ES","NT","LB","VAI","CW","TÜ"];
+const MAX_QUERIES = 40;            // muss zu MAX_QUERIES_PER_RUN in kz/scan.py passen
+const SCAN_EVERY_HOURS = 3;        // muss zum cron in .github/workflows/scan.yml passen
+const SCAN_MINUTE = 17;
+const FILES = {watchlist:{entries:[]}, state:{entries:{}}, history:[], instant:[], telegram_status:{}};
+
+const store = {
+  get(k){ try { return localStorage.getItem(k); } catch(e){ return null; } },
+  set(k,v){ try { localStorage.setItem(k,v); } catch(e){} },
+  del(k){ try { localStorage.removeItem(k); } catch(e){} },
+};
+
+const S = {
+  token: store.get("kz-token") || "",
+  view: "uebersicht",
+  loaded: false, loadError: "",
+  data: JSON.parse(JSON.stringify(FILES)),
+  sha: {},
+  form: {city: store.get("kz-city") || "BB", letters: "", numbers: ""},
+  add: {city: store.get("kz-city") || "BB", letters: "", numbers: ""},
+  inst: null,     // laufende oder letzte Sofort-Abfrage
+  scan: null,     // laufender Scan, vom Dashboard gestartet
+  showScans: false,
+};
+
+/* ---------- Hilfen ---------- */
+function esc(v){ return String(v ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
+function plate(label, cls){ return `<span class="plate ${cls||""}"><span>${esc(label)}</span></span>`; }
+function showNum(n){ return String(n).replace("-", "–"); }
+function labelOf(e){ return `${e.city} ${e.letters} ${showNum(e.numbers)}`; }
+function idOf(e){ return `${e.city}|${e.letters}|${e.numbers}`; }
+
+const pad = n => String(n).padStart(2, "0");
+function when(ts){
+  if (!ts) return "–";
+  const d = new Date(ts); if (isNaN(d)) return "–";
+  const now = new Date(), y = new Date(now); y.setDate(now.getDate() - 1);
+  const t = `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if (d.toDateString() === now.toDateString()) return `heute, ${t}`;
+  if (d.toDateString() === y.toDateString()) return `gestern, ${t}`;
+  return `${pad(d.getDate())}.${pad(d.getMonth()+1)}., ${t}`;
+}
+function nextScan(from){
+  const d = new Date(from || Date.now());
+  const n = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), d.getUTCHours(), SCAN_MINUTE));
+  while (n <= d || n.getUTCHours() % SCAN_EVERY_HOURS !== 0) n.setUTCHours(n.getUTCHours() + 1, SCAN_MINUTE, 0, 0);
+  return n;
+}
+function untilText(date){
+  const min = Math.max(0, Math.round((date - Date.now()) / 60000));
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min/60)} h ${pad(min % 60)} min`;
+}
+function secondsSince(t){ return Math.round((Date.now() - t) / 1000); }
+
+/* Eingaben prüfen, gleiche Regeln wie kz/patterns.py */
+function makeEntry(city, letters, numbers){
+  city = String(city||"").trim().toUpperCase();
+  letters = String(letters||"").trim().toUpperCase();
+  numbers = String(numbers||"").trim().replace(/[–—]/g, "-").replace(/\s+/g, "");
+  if (!CITIES.includes(city)) throw new Error("Bezirk auswählen.");
+  if (!/^[A-ZÄÖÜ?]{1,2}$/.test(letters)) throw new Error("Buchstaben: 1 oder 2 Zeichen, A–Z oder ?.");
+  const r = numbers.match(/^(\d{1,4})-(\d{1,4})$/);
+  if (r){
+    const lo = +r[1], hi = +r[2];
+    if (lo < 1 || lo > hi) throw new Error("Zahlenbereich: von muss kleiner als bis sein, ab 1.");
+  } else if (!/^[0-9?]{1,4}$/.test(numbers)) {
+    throw new Error("Zahlen: 1 bis 4 Ziffern, ? oder Bereich wie 1-99.");
+  } else if (numbers[0] === "0") {
+    throw new Error("Zahlen dürfen nicht mit 0 beginnen.");
+  }
+  return {city, letters, numbers};
+}
+function isExact(e){ return !/-/.test(e.numbers) && !/\?/.test(e.letters + e.numbers); }
+function queryCount(e){
+  const r = e.numbers.match(/^(\d+)-(\d+)$/);
+  return r ? r[2].length - r[1].length + 1 : 1;
+}
+
+/* ---------- GitHub ---------- */
+class GhError extends Error { constructor(msg, status){ super(msg); this.status = status; } }
+async function gh(path, opts = {}){
+  let res;
+  try {
+    res = await fetch(API + path, {
+      ...opts, cache: "no-store",
+      headers: {"Accept":"application/vnd.github+json", "Authorization":`Bearer ${S.token}`,
+                "X-GitHub-Api-Version":"2022-11-28", ...(opts.body ? {"Content-Type":"application/json"} : {})},
+    });
+  } catch (e) { throw new GhError("Keine Verbindung zu GitHub. Internet prüfen.", 0); }
+  if (res.status === 401) throw new GhError("Der GitHub-Schlüssel ist ungültig oder abgelaufen. Unter Einstellungen neu eintragen.", 401);
+  return res;
+}
+function b64decode(s){ const bin = atob(s.replace(/\n/g, "")); return new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))); }
+function b64encode(s){ const bytes = new TextEncoder().encode(s); let bin = ""; bytes.forEach(b => bin += String.fromCharCode(b)); return btoa(bin); }
+
+async function readFile(name){
+  const res = await gh(`/repos/${REPO}/contents/data/${name}.json?ref=${BRANCH}`);
+  if (res.status === 404) { S.sha[name] = undefined; return JSON.parse(JSON.stringify(FILES[name])); }
+  if (!res.ok) throw new GhError(res.status === 403
+      ? "Der Schlüssel darf das Repo nicht lesen. Berechtigung „Contents: Lesen und schreiben“ setzen."
+      : `GitHub antwortet mit Fehler ${res.status}.`, res.status);
+  const j = await res.json();
+  S.sha[name] = j.sha;
+  try { return JSON.parse(b64decode(j.content)); } catch(e) { return JSON.parse(JSON.stringify(FILES[name])); }
+}
+async function writeFile(name, value, message){
+  const body = {message, branch: BRANCH, content: b64encode(JSON.stringify(value, null, 2) + "\n")};
+  if (S.sha[name]) body.sha = S.sha[name];
+  const res = await gh(`/repos/${REPO}/contents/data/${name}.json`, {method:"PUT", body: JSON.stringify(body)});
+  if (res.status === 409 || res.status === 422) return false;  // inzwischen geändert
+  if (!res.ok) throw new GhError(res.status === 403
+      ? "Der Schlüssel darf nicht speichern. Berechtigung „Contents: Lesen und schreiben“ setzen."
+      : `Speichern fehlgeschlagen (Fehler ${res.status}).`, res.status);
+  S.sha[name] = (await res.json()).content.sha;
+  return true;
+}
+async function dispatch(inputs){
+  const res = await gh(`/repos/${REPO}/actions/workflows/scan.yml/dispatches`,
+    {method:"POST", body: JSON.stringify({ref: BRANCH, inputs})});
+  if (res.status === 204) return;
+  if (res.status === 403 || res.status === 404)
+    throw new GhError("Der Schlüssel darf keine Läufe starten. Berechtigung „Actions: Lesen und schreiben“ setzen.", res.status);
+  throw new GhError(`Lauf konnte nicht gestartet werden (Fehler ${res.status}).`, res.status);
+}
+
+/* Neuen Schlüssel prüfen, bevor er gespeichert wird */
+async function verifyToken(t){
+  const prev = S.token; S.token = t;
+  try {
+    const res = await gh(`/repos/${REPO}`);
+    if (res.status === 404 || res.status === 403)
+      throw new GhError("Der Schlüssel hat keinen Zugriff auf kennzeichen-scanner. Bei „Repository access“ das Repo auswählen.", res.status);
+    if (!res.ok) throw new GhError(`GitHub antwortet mit Fehler ${res.status}.`, res.status);
+  } finally { S.token = prev; }
+}
+
+async function loadAll(){
+  if (!S.token) { S.loaded = false; render(); return; }
+  try {
+    const names = Object.keys(FILES);
+    const values = await Promise.all(names.map(readFile));
+    names.forEach((n, i) => S.data[n] = values[i]);
+    S.loaded = true; S.loadError = "";
+  } catch (e) {
+    S.loadError = e.message;
+  }
+  refresh();
+}
+
+/* Watchlist ändern: immer auf den neuesten Stand aufsetzen, bei Konflikt einmal neu versuchen */
+async function changeWatchlist(fn, message){
+  for (let attempt = 0; attempt < 3; attempt++){
+    const wl = await readFile("watchlist");
+    const entries = fn(Array.isArray(wl.entries) ? wl.entries : []);
+    if (entries === null) return false;
+    if (await writeFile("watchlist", {entries}, message)) { S.data.watchlist = {entries}; refresh(); return true; }
+  }
+  throw new GhError("Die Watchlist wurde gleichzeitig geändert. Bitte noch einmal versuchen.", 409);
+}
+async function addEntry(e){
+  let dup = false;
+  await changeWatchlist(list => {
+    if (list.some(x => idOf(x) === idOf(e))) { dup = true; return null; }
+    return [...list, {city: e.city, letters: e.letters, numbers: e.numbers}];
+  }, `Watchlist: ${labelOf(e)} hinzugefügt`);
+  toast(dup ? `${labelOf(e)} steht schon auf der Watchlist.` : `${labelOf(e)} ist auf der Watchlist.`);
+}
+async function removeEntry(id){
+  let removed = null;
+  await changeWatchlist(list => {
+    removed = list.find(x => idOf(x) === id) || null;
+    return removed ? list.filter(x => idOf(x) !== id) : null;
+  }, `Watchlist: Eintrag entfernt`);
+  if (removed) toast(`${labelOf(removed)} entfernt.`, "Rückgängig", () => run(() => addEntry(removed)));
+}
+
+/* ---------- Abläufe ---------- */
+async function startInstant(entry){
+  const id = "w" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  S.inst = {phase: "running", entry, id, started: Date.now(), note: "Abfrage wird gestartet"};
+  refresh();
+  try {
+    await dispatch({mode: "instant", city: entry.city, letters: entry.letters, numbers: entry.numbers, request_id: id});
+    S.inst.note = "Läuft auf GitHub";
+    while (S.inst && S.inst.id === id && secondsSince(S.inst.started) < 240){
+      await sleep(4000);
+      const list = await readFile("instant");
+      S.data.instant = list;
+      const hit = Array.isArray(list) && list.find(r => r.id === id);
+      if (hit){ S.inst = {phase: "done", entry, id, result: hit}; refresh(); return; }
+      if (secondsSince(S.inst.started) > 45) S.inst.note = "Dauert länger als üblich, wartet evtl. auf einen freien GitHub-Rechner";
+    }
+    if (S.inst && S.inst.id === id){ S.inst = {phase:"error", entry, id, message:"Keine Antwort nach 4 Minuten. Später noch einmal versuchen."}; }
+  } catch (e) {
+    S.inst = {phase: "error", entry, id, message: e.message};
+  }
+  refresh();
+}
+async function startScan(){
+  const before = S.data.state.updated || null;
+  S.scan = {started: Date.now(), before};
+  refresh();
+  try {
+    await dispatch({mode: "scan"});
+    while (S.scan && secondsSince(S.scan.started) < 20 * 60){
+      await sleep(10000);
+      const st = await readFile("state");
+      if (st.updated && st.updated !== before){
+        await loadAll();
+        S.scan = null; refresh();
+        toast("Scan fertig.");
+        return;
+      }
+    }
+    S.scan = null; toast("Scan läuft noch, Ergebnis kommt mit der nächsten Aktualisierung.");
+  } catch (e) {
+    S.scan = null; toast(e.message);
+  }
+  refresh();
+}
+async function run(fn){
+  try { await fn(); } catch (e) { toast(e.message || "Das hat nicht geklappt."); }
+}
+
+/* ---------- Toast ---------- */
+let toastTimer;
+function toast(text, actionLabel, action){
+  const el = document.getElementById("toast");
+  el.innerHTML = `<span>${esc(text)}</span>` + (actionLabel ? `<button type="button">${esc(actionLabel)}</button>` : "");
+  el.hidden = false;
+  if (actionLabel) el.querySelector("button").onclick = () => { el.hidden = true; action(); };
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.hidden = true, actionLabel ? 7000 : 3500);
+}
+
+/* ---------- Daten für die Anzeige ---------- */
+function entries(){
+  const list = (S.data.watchlist && Array.isArray(S.data.watchlist.entries)) ? S.data.watchlist.entries : [];
+  return list.map(e => {
+    const st = (S.data.state.entries || {})[idOf(e)] || null;
+    return {...e, id: idOf(e), label: labelOf(e), exact: isExact(e), st};
+  });
+}
+function statusOf(e){
+  const st = e.st;
+  if (!st || !st.checked) return st && st.error
+    ? {cls:"b-err", text:"Fehler", note: st.error}
+    : {cls:"b-wait", text:"Noch nicht geprüft", note:"wird beim nächsten Scan geprüft"};
+  const n = (st.free || []).length;
+  const s = e.exact ? (n ? {cls:"b-free", text:"Frei"} : {cls:"b-none", text:"Nicht frei"})
+                    : (n ? {cls:"b-free", text:`${n} frei`} : {cls:"b-none", text:"Keine frei"});
+  s.note = when(st.checked) + (st.error ? " · letzter Versuch fehlgeschlagen" : "");
+  return s;
+}
+function allFree(){
+  const seen = new Set(), out = [];
+  entries().forEach(e => ((e.st && e.st.free) || []).forEach(p => { if (!seen.has(p)) { seen.add(p); out.push(p); } }));
+  return out;
+}
+function totalQueries(){ return entries().reduce((n, e) => n + queryCount(e), 0); }
+
+/* ---------- Bereiche, die sich bei neuen Daten aktualisieren ---------- */
+const REGIONS = {
+  sidestatus(){
+    if (!S.token) return `<strong><span class="dot off"></span>Nicht verbunden</strong><span>GitHub-Schlüssel fehlt</span>`;
+    if (S.loadError) return `<strong><span class="dot err"></span>Keine Daten</strong><span>${esc(S.loadError)}</span>`;
+    const run = S.data.state.last_run, tg = S.data.telegram_status;
+    const head = S.scan ? `<strong><span class="dot busy"></span>Scan läuft</strong>`
+                        : `<strong><span class="dot"></span>Scanner aktiv</strong>`;
+    return head + `<span>Nächster Scan in ${untilText(nextScan())}</span>`
+      + `<span>Letzter Lauf ${run ? esc(when(run.finished)) : "noch keiner"}</span>`
+      + `<span>${tg && tg.ok ? "Telegram verbunden" : "Telegram nicht verbunden"}</span>`;
+  },
+  scanpanel(){
+    const run = S.data.state.last_run, tg = S.data.telegram_status, n = entries().length;
+    return `<div class="kv"><span>Rhythmus</span><span>alle ${SCAN_EVERY_HOURS} Stunden</span></div>
+      <div class="kv"><span>Nächster Scan</span><span>ca. ${pad(nextScan().getHours())}:${pad(nextScan().getMinutes())} Uhr</span></div>
+      <div class="kv"><span>Letzter Lauf</span><span>${run ? esc(when(run.finished)) : "noch keiner"}</span></div>
+      <div class="kv"><span>Abfragen im Lauf</span><span>${run ? esc(run.queries) : "–"}${run && run.errors ? ` · ${esc(run.errors)} Fehler` : ""}</span></div>
+      <div class="kv"><span>Alarm</span><span>${tg && tg.ok ? "Telegram" : "nicht eingerichtet"}</span></div>
+      ${S.scan ? `<div class="progress" aria-hidden="true"><i></i></div><p class="hint">Scan läuft seit ${untilSecs(S.scan.started)}.</p>` : ""}
+      ${n ? "" : `<p class="hint">Die Watchlist ist leer, es gibt nichts zu prüfen.</p>`}`;
+  },
+  instantresult(){
+    const r = S.inst;
+    if (!r) return `<p class="hint">Mit ? suchst du ein beliebiges Zeichen, z. B. K? oder 9?. Für Zahlenbereiche schreib 1-99.</p>`;
+    if (r.phase === "running") return `<div class="result">${plate(labelOf(r.entry))}
+        <span class="badge b-wait">Wird geprüft</span><span class="hint">${esc(r.note)} · ${secondsSince(r.started)} s</span>
+        <div class="progress" aria-hidden="true"><i></i></div></div>`;
+    if (r.phase === "error") return `<div class="result">${plate(labelOf(r.entry))}
+        <span class="badge b-err">Fehler</span><span class="msg-err">${esc(r.message)}</span></div>`;
+    const res = r.result, free = res.free || [];
+    if (res.error) return `<div class="result">${plate(labelOf(r.entry))}<span class="badge b-err">Fehler</span>
+        <span class="msg-err">${esc(res.error)}</span></div>`;
+    const onList = entries().some(e => e.id === idOf(r.entry));
+    const addBtn = onList ? `<span class="hint end">Steht auf der Watchlist</span>`
+      : `<button class="btn end" type="button" data-action="add-instant">Zur Watchlist</button>`;
+    if (isExact(r.entry)) return `<div class="result">${plate(labelOf(r.entry), "lg")}
+        ${free.length ? `<span class="badge b-free">Frei</span>` : `<span class="badge b-none">Nicht frei</span>`}
+        <span class="hint">Geprüft ${esc(when(res.ts))}${free.length ? "" : " · auf die Watchlist setzen, dann meldet Telegram, sobald es frei wird"}</span>
+        ${addBtn}</div>`;
+    return `<div class="result-block"><div class="panel-head">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">${plate(labelOf(r.entry))}
+        <span class="badge ${free.length ? "b-free" : "b-none"}">${free.length ? `${free.length} frei` : "Keine frei"}</span>
+        <span class="hint">Geprüft ${esc(when(res.ts))}</span></div>${addBtn}</div>
+        ${free.length ? `<div class="plates">${free.slice(0, 60).map(p => plate(p)).join("")}</div>` : ""}
+        ${free.length > 60 ? `<p class="hint">und ${free.length - 60} weitere</p>` : ""}
+        ${free.length >= 30 ? `<p class="hint">Die Quelle liefert pro Abfrage nur eine begrenzte Anzahl. Für mehr Treffer das Muster enger fassen.</p>` : ""}</div>`;
+  },
+  watchtable(){
+    const list = entries();
+    if (!list.length) return emptyWatch();
+    const mobile = `<div class="list only-mobile">` + list.map(e => { const s = statusOf(e); return `<div class="list-item">
+        <div class="grow"><span class="t">${esc(e.label)}</span><span class="s">${e.exact ? "Exakt" : "Muster"} · ${esc(e.st && e.st.checked ? when(e.st.checked) : "noch nicht geprüft")}</span></div>
+        <span class="badge ${s.cls}">${esc(s.text)}</span></div>`; }).join("") + `</div>`;
+    return mobile + `<div class="table-box only-desktop"><table><thead><tr><th>Kennzeichen</th><th>Art</th><th>Status</th><th>Zuletzt geprüft</th></tr></thead><tbody>`
+      + list.map(e => { const s = statusOf(e); return `<tr><td class="plate-cell">${esc(e.label)}</td>
+          <td>${e.exact ? "Exakt" : "Muster"}</td><td><span class="badge ${s.cls}" title="${esc(s.note)}">${esc(s.text)}</span></td>
+          <td>${esc(e.st && e.st.checked ? when(e.st.checked) : "–")}</td></tr>`; }).join("")
+      + `</tbody></table></div>`;
+  },
+  freeshort(){
+    const free = allFree();
+    if (!free.length) return `<p class="hint">${entries().length ? "Aktuell ist nichts von deiner Watchlist frei." : "Sobald die Watchlist geprüft wurde, stehen hier die freien Kennzeichen."}</p>`;
+    return `<div class="plates">${free.slice(0, 12).map(p => plate(p)).join("")}</div>`
+      + (free.length > 12 ? `<a href="#frei">Alle ${free.length} anzeigen</a>` : "");
+  },
+  watchmanage(){
+    const list = entries();
+    if (!list.length) return `<div class="empty"><strong>Noch nichts auf der Watchlist</strong>
+      <span>Füge oben ein Kennzeichen oder Muster hinzu. Der Scanner prüft es alle ${SCAN_EVERY_HOURS} Stunden.</span></div>`;
+    return `<div class="list">` + list.map(e => { const s = statusOf(e); return `<div class="list-item">
+        <div class="grow"><span class="t">${esc(e.label)}</span><span class="s">${e.exact ? "Exakt" : "Muster"}${queryCount(e) > 1 ? ` · ${queryCount(e)} Abfragen` : ""} · ${esc(s.note)}</span></div>
+        <span class="badge ${s.cls}">${esc(s.text)}</span>
+        <button class="icon-btn danger" type="button" data-action="remove" data-id="${esc(e.id)}" aria-label="${esc(e.label)} entfernen" title="Entfernen">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg></button>
+      </div>`; }).join("") + `</div>`;
+  },
+  budget(){
+    const used = totalQueries();
+    return used > MAX_QUERIES
+      ? `<p class="msg-err">Die Watchlist braucht ${used} Abfragen, pro Scan sind höchstens ${MAX_QUERIES} erlaubt. Die letzten Einträge werden übersprungen.</p>`
+      : `<p class="hint">${used} von ${MAX_QUERIES} Abfragen pro Scan belegt.</p>`;
+  },
+  allfree(){
+    const list = entries().filter(e => e.st && e.st.free && e.st.free.length);
+    if (!list.length) return `<div class="empty"><strong>Gerade ist nichts frei</strong>
+      <span>${entries().length ? "Der Scanner meldet sich per Telegram, sobald sich das ändert." : "Leg zuerst Einträge auf der Watchlist an."}</span>
+      ${entries().length ? "" : `<a class="btn" href="#watchlist">Zur Watchlist</a>`}</div>`;
+    return list.map(e => `<div class="group"><div class="group-head"><b>${esc(e.label)}</b>
+        <span class="hint">${e.st.free.length} frei · ${esc(when(e.st.checked))}</span></div>
+        <div class="plates">${e.st.free.map(p => plate(p)).join("")}</div></div>`).join("");
+  },
+  history(){
+    const all = Array.isArray(S.data.history) ? S.data.history : [];
+    const list = all.filter(ev => S.showScans || ev.type !== "scan").slice(0, 200);
+    if (!list.length) return `<div class="empty"><strong>Noch kein Verlauf</strong><span>Hier erscheint, wann Kennzeichen frei werden oder verschwinden.</span></div>`;
+    return list.map(ev => {
+      let what;
+      if (ev.type === "frei") what = `<span class="badge b-free">Frei geworden</span><span class="mono">${esc(ev.plate)}</span><span class="hint">aus ${esc(ev.entry)}</span>`;
+      else if (ev.type === "weg") what = `<span class="badge b-none">Nicht mehr frei</span><span class="mono">${esc(ev.plate)}</span><span class="hint">aus ${esc(ev.entry)}</span>`;
+      else if (ev.type === "fehler") what = `<span class="badge b-err">Fehler</span><span class="mono">${esc(ev.entry)}</span><span class="hint">${esc(ev.text)}</span>`;
+      else what = `<span>Scan fertig</span><span class="hint">${esc(ev.text)}</span>`;
+      return `<div class="event"><time datetime="${esc(ev.ts)}">${esc(when(ev.ts))}</time><div class="what">${what}</div></div>`;
+    }).join("");
+  },
+  settingsstatus(){
+    if (!S.token) return `<p class="hint">Noch kein Schlüssel eingetragen.</p>`;
+    if (S.loadError) return `<p class="msg-err">${esc(S.loadError)}</p>`;
+    if (!S.loaded) return `<p class="hint">Verbinde…</p>`;
+    const tg = S.data.telegram_status;
+    return `<div class="kv"><span>GitHub</span><span>verbunden mit ${esc(REPO)}</span></div>
+      <div class="kv"><span>Telegram</span><span>${tg && tg.ok ? `verbunden${tg.chat_name ? ` (${esc(tg.chat_name)})` : ""}` : "nicht verbunden"}</span></div>
+      <div class="kv"><span>Scan</span><span>alle ${SCAN_EVERY_HOURS} Stunden</span></div>`;
+  },
+};
+function untilSecs(t){ const s = secondsSince(t); return s < 60 ? `${s} s` : `${Math.floor(s/60)} min`; }
+function emptyWatch(){
+  return `<div class="empty"><strong>Noch nichts auf der Watchlist</strong>
+    <span>Prüf oben ein Kennzeichen und setz es auf die Watchlist, oder leg direkt ein Muster an.</span>
+    <a class="btn" href="#watchlist">Watchlist öffnen</a></div>`;
+}
+
+function refresh(){
+  document.querySelectorAll("[data-region]").forEach(el => {
+    const fn = REGIONS[el.dataset.region]; if (fn) el.innerHTML = fn();
+  });
+  const btn = document.querySelector('[data-action="scan-now"]');
+  if (btn) btn.disabled = !!S.scan || !entries().length || !S.loaded;
+  const ib = document.querySelector('[data-action="instant-submit"]');
+  if (ib) ib.disabled = !!(S.inst && S.inst.phase === "running") || !S.loaded;
+}
+
+/* ---------- Ansichten (Gerüst, wird nur beim Wechsel neu gebaut) ---------- */
+function cityOptions(sel){ return CITIES.map(c => `<option${c === sel ? " selected" : ""}>${c}</option>`).join(""); }
+function plateForm(prefix, f, submitLabel, action){
+  return `<form class="form" data-form="${prefix}" novalidate>
+    <label class="field">Bezirk<select class="input plate-in" name="city">${cityOptions(f.city)}</select></label>
+    <label class="field">Buchstaben<input class="input plate-in" name="letters" value="${esc(f.letters)}" placeholder="KC" maxlength="2" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+    <label class="field">Zahlen<input class="input plate-in" name="numbers" value="${esc(f.numbers)}" placeholder="99" maxlength="9" autocomplete="off" inputmode="text" spellcheck="false"></label>
+    <button class="btn primary" type="submit" data-action="${action}">${submitLabel}</button>
+  </form><p class="msg-err" data-err="${prefix}" hidden></p>`;
+}
+
+const VIEWS = {
+  uebersicht: () => `
+    <div class="head"><div><h1>Übersicht</h1><div class="sub" data-region="overviewsub"></div></div>
+      <button class="btn" type="button" data-action="scan-now">Jetzt alle prüfen</button></div>
+    <div class="row">
+      <section class="panel wide" aria-labelledby="h-inst"><h2 id="h-inst">Sofort-Abfrage</h2>
+        ${plateForm("instant", S.form, "Prüfen", "instant-submit")}
+        <div data-region="instantresult" aria-live="polite"></div></section>
+      <section class="panel narrow" aria-labelledby="h-scan"><h2 id="h-scan">Scan</h2><div data-region="scanpanel" style="display:flex;flex-direction:column;gap:12px"></div></section>
+    </div>
+    <div class="row">
+      <section class="panel wide" aria-labelledby="h-wl"><div class="panel-head"><h2 id="h-wl">Watchlist</h2>
+        <a class="btn" href="#watchlist">Bearbeiten</a></div><div data-region="watchtable"></div></section>
+      <section class="panel narrow" aria-labelledby="h-free"><h2 id="h-free">Gerade frei</h2><div data-region="freeshort" style="display:flex;flex-direction:column;gap:12px"></div></section>
+    </div>`,
+  watchlist: () => `
+    <div class="head"><div><h1>Watchlist</h1><div class="sub">Wird alle ${SCAN_EVERY_HOURS} Stunden geprüft. Neu freie Kennzeichen meldet Telegram.</div></div></div>
+    <section class="panel" aria-labelledby="h-add"><h2 id="h-add">Hinzufügen</h2>
+      ${plateForm("add", S.add, "Hinzufügen", "add-submit")}
+      <p class="hint">Exakt: KC und 99. Muster: ? für ein beliebiges Zeichen, z. B. K? oder 9?. Bereich: 1-99.</p>
+      <div data-region="budget"></div></section>
+    <section class="panel" aria-labelledby="h-list"><h2 id="h-list">Einträge</h2><div data-region="watchmanage"></div></section>`,
+  frei: () => `
+    <div class="head"><div><h1>Gerade frei</h1><div class="sub">Stand des letzten Scans, gruppiert nach Watchlist-Eintrag.</div></div></div>
+    <section class="panel" aria-label="Freie Kennzeichen" data-region="allfree"></section>`,
+  verlauf: () => `
+    <div class="head"><div><h1>Verlauf</h1><div class="sub">Was sich bei deinen Einträgen geändert hat.</div></div>
+      <label class="check"><input type="checkbox" data-action="toggle-scans"${S.showScans ? " checked" : ""}>Scan-Läufe anzeigen</label></div>
+    <section class="panel" aria-label="Verlauf" data-region="history" style="gap:0"></section>`,
+  einstellungen: () => `
+    <div class="head"><div><h1>Einstellungen</h1></div></div>
+    <section class="panel" aria-labelledby="h-st"><h2 id="h-st">Status</h2><div data-region="settingsstatus" style="display:flex;flex-direction:column;gap:12px"></div></section>
+    ${tokenPanel()}`,
+};
+function tokenPanel(){
+  return `<section class="panel" aria-labelledby="h-tok"><h2 id="h-tok">GitHub-Schlüssel</h2>
+    <p class="hint" style="color:var(--ink-2)">Das Dashboard liest und speichert deine Daten direkt in deinem privaten Repo. Dafür braucht jedes Gerät einmal einen Schlüssel. Er bleibt nur in diesem Browser gespeichert.</p>
+    <ol class="steps">
+      <li><a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Neuen Schlüssel bei GitHub anlegen</a> (Fine-grained token)</li>
+      <li>Repository access: <b>Only select repositories</b> → <code>kennzeichen-scanner</code></li>
+      <li>Permissions: <b>Actions</b> und <b>Contents</b> jeweils auf <b>Read and write</b></li>
+      <li>Erzeugen, kopieren und hier einfügen</li>
+    </ol>
+    <form class="form" data-form="token" novalidate>
+      <label class="field grow">Schlüssel<input class="input" type="password" name="token" placeholder="github_pat_…" autocomplete="off" spellcheck="false"></label>
+      <button class="btn primary" type="submit">Speichern und verbinden</button>
+    </form>
+    <p class="msg-err" data-err="token" hidden></p>
+    ${S.token ? `<div><button class="btn quiet danger" type="button" data-action="forget-token">Schlüssel von diesem Gerät löschen</button></div>` : ""}
+  </section>`;
+}
+function onboarding(){
+  return `<div class="head"><div><h1>Mit GitHub verbinden</h1>
+    <div class="sub">Einmal pro Gerät. Danach siehst du hier deine Watchlist und kannst Kennzeichen sofort prüfen.</div></div></div>
+    ${tokenPanel()}`;
+}
+REGIONS.overviewsub = () => {
+  const n = entries().length;
+  return n ? `${n} ${n === 1 ? "Eintrag" : "Einträge"} auf der Watchlist · Scan alle ${SCAN_EVERY_HOURS} Stunden` : "Noch keine Einträge auf der Watchlist";
+};
+
+function render(){
+  const main = document.getElementById("main");
+  let view = (location.hash || "#uebersicht").slice(1);
+  if (!VIEWS[view]) view = "uebersicht";
+  S.view = view;
+  document.querySelectorAll("[data-nav]").forEach(a => {
+    if (a.dataset.nav === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  });
+  main.innerHTML = (!S.token && view !== "einstellungen") ? onboarding() : VIEWS[view]();
+  refresh();
+}
+
+/* ---------- Ereignisse ---------- */
+document.addEventListener("input", ev => {
+  const f = ev.target.closest("form[data-form]"); if (!f) return;
+  const key = f.dataset.form === "instant" ? "form" : f.dataset.form === "add" ? "add" : null;
+  if (!key || !ev.target.name) return;
+  S[key][ev.target.name] = ev.target.value;
+  if (ev.target.name === "city") store.set("kz-city", ev.target.value);
+});
+document.addEventListener("change", ev => {
+  if (ev.target.matches('[data-action="toggle-scans"]')) { S.showScans = ev.target.checked; refresh(); }
+});
+document.addEventListener("submit", ev => {
+  const f = ev.target.closest("form[data-form]"); if (!f) return;
+  ev.preventDefault();
+  const kind = f.dataset.form, err = document.querySelector(`[data-err="${kind}"]`);
+  const showErr = m => { if (err) { err.textContent = m; err.hidden = !m; } };
+  showErr("");
+  if (kind === "token"){
+    const t = f.token.value.trim();
+    if (!t) return showErr("Bitte den Schlüssel einfügen.");
+    const btn = f.querySelector("button"); btn.disabled = true;
+    verifyToken(t).then(() => {
+      S.token = t; store.set("kz-token", t);
+      S.loadError = ""; S.loaded = false;
+      toast("Verbunden.");
+      if (location.hash === "#uebersicht") render(); else location.hash = "#uebersicht";
+      return loadAll();
+    }).catch(e => { showErr(e.message); btn.disabled = false; });
+    return;
+  }
+  let entry;
+  try { entry = makeEntry(f.city.value, f.letters.value, f.numbers.value); }
+  catch (e) { return showErr(e.message); }
+  if (kind === "instant"){ S.form = {...entry, numbers: entry.numbers}; startInstant(entry); }
+  if (kind === "add"){
+    run(async () => { await addEntry(entry); S.add = {city: entry.city, letters: "", numbers: ""}; f.letters.value = ""; f.numbers.value = ""; f.letters.focus(); });
+  }
+});
+document.addEventListener("click", ev => {
+  const b = ev.target.closest("[data-action]"); if (!b) return;
+  const a = b.dataset.action;
+  if (a === "scan-now") run(startScan);
+  if (a === "remove") run(() => removeEntry(b.dataset.id));
+  if (a === "add-instant" && S.inst) run(() => addEntry(S.inst.entry));
+  if (a === "forget-token"){ store.del("kz-token"); S.token = ""; S.loaded = false; S.data = JSON.parse(JSON.stringify(FILES)); render(); toast("Schlüssel gelöscht."); }
+});
+window.addEventListener("hashchange", render);
+
+/* Laufende Anzeigen jede Sekunde, Daten jede Minute aktualisieren (nur wenn sichtbar) */
+setInterval(() => {
+  if (S.inst && S.inst.phase === "running") document.querySelectorAll('[data-region="instantresult"]').forEach(el => el.innerHTML = REGIONS.instantresult());
+}, 1000);
+setInterval(() => { if (!document.hidden && S.token && !S.scan) loadAll(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden && S.token) loadAll(); });
+
+render();
+loadAll();
+</script>
+</body>
+</html>
